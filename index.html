@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Port of Rotterdam - Waste Management Digital Twin</title>
+    <style>
+        :root {
+            --bg-color: #0b2b51;
+            --container-bg: #ffffff;
+            --primary-text: #1f2937;
+            --secondary-text: #6b7280;
+            --button-bg: #3BA935;
+            --header-bg: #f3f4f6;
+            --border-color: #e5e7eb;
+        }
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+            margin: 0; 
+            background-color: var(--bg-color); 
+            color: var(--primary-text); 
+        }
+        .container { 
+            max-width: 1600px; 
+            margin: 20px auto; 
+            padding: 20px; 
+            background-color: var(--container-bg); 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            border-radius: 12px; 
+        }
+        h1, h2, h3 { color: var(--primary-text); }
+        h1 { text-align: center; padding-bottom: 15px; font-weight: 700; }
+        .tabs { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 25px; }
+        .tab-button { 
+            padding: 12px 24px; 
+            cursor: pointer; 
+            background-color: transparent; 
+            border: none; 
+            border-bottom: 3px solid transparent;
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--secondary-text);
+            transition: all 0.3s ease;
+        }
+        .tab-button.active { 
+            color: var(--primary-text);
+            border-bottom: 3px solid var(--button-bg);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .grid-container { display: grid; grid-template-columns: 350px 1fr; gap: 30px; }
+        .config-panel, .results-panel { padding: 25px; border-radius: 8px; background-color: #f9fafb; border: 1px solid var(--border-color); }
+        .config-section { margin-bottom: 25px; }
+        .config-section h3 { margin-top: 0; color: var(--primary-text); border-bottom: 1px solid var(--border-color); padding-bottom: 8px; font-size: 1.1em; }
+        label { display: block; font-weight: 500; margin-bottom: 8px; font-size: 0.9em; color: var(--secondary-text); }
+        input[type="number"], select { 
+            width: calc(100% - 20px); 
+            padding: 10px; 
+            border-radius: 6px; 
+            border: 1px solid var(--border-color); 
+            font-size: 1em; 
+            background-color: var(--container-bg);
+            color: var(--primary-text);
+        }
+        .run-button { 
+            display: block; 
+            width: 100%; 
+            padding: 12px; 
+            font-size: 1.2em; 
+            font-weight: bold; 
+            color: var(--container-bg); 
+            background-color: var(--button-bg); 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            transition: background-color 0.3s, transform 0.1s; 
+        }
+        .run-button:hover { background-color: #329a2f; }
+        .run-button:active { transform: scale(0.98); }
+        
+        .kpi-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; text-align: left; margin-bottom: 30px; }
+        .kpi-box { padding: 20px; border-radius: 8px; background-color: var(--container-bg); border: 1px solid var(--border-color); }
+        .kpi-box h4 { margin: 0 0 10px 0; font-size: 0.9em; font-weight: 600; color: var(--secondary-text); }
+        .kpi-value { font-size: 2em; font-weight: 700; color: var(--primary-text); }
+        .kpi-value .savings { color: var(--button-bg); }
+        .kpi-value .loss { color: #d9534f; }
+        
+        .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; color: var(--primary-text); }
+        th, td { border: 1px solid var(--border-color); padding: 10px; text-align: left; }
+        th { background-color: var(--header-bg); font-weight: 600; }
+        #dataTableContainer { max-height: 70vh; overflow-y: auto; }
+        .filter-section { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Port of Rotterdam Waste Management Digital Twin</h1>
+        <div class="tabs">
+            <button class="tab-button active" onclick="openTab(event, 'Simulator')">Simulator</button>
+            <button class="tab-button" onclick="openTab(event, 'DataFoundation')">Data Foundation</button>
+        </div>
+
+        <div id="Simulator" class="tab-content active">
+            <div class="grid-container">
+                <div class="config-panel">
+                    <h2>Configuration</h2>
+                    <div class="config-section">
+                        <h3>1. Cost Assumptions</h3>
+                        <label for="costStatic">Cost per Static Tour (€)</label>
+                        <input type="number" id="costStatic" value="100">
+                        <label for="costDynamic" style="margin-top:15px;">Cost per Dynamic Tour (€)</label>
+                        <input type="number" id="costDynamic" value="165">
+                    </div>
+
+                    <div class="config-section">
+                        <h3>2. Frequency Assumptions</h3>
+                        <label for="avgDaysNewDynamic">Avg. Collection Interval for Converted Tours (Days)</label>
+                        <input type="number" id="avgDaysNewDynamic" value="9">
+                         <label for="avgDaysExistingDynamic" style="margin-top:15px;">Avg. Collection Interval for Existing Dynamic Tours (Days)</label>
+                        <input type="number" id="avgDaysExistingDynamic" value="10">
+                    </div>
+
+                    <div class="config-section">
+                        <h3>3. Conversion Scenario</h3>
+                        <label for="conversionType">Select Conversion Method:</label>
+                        <select id="conversionType" onchange="toggleConversionOptions()">
+                            <option value="percentage">By Percentage</option>
+                            <option value="filter">By Filter</option>
+                        </select>
+                        
+                        <div id="percentageOptions">
+                            <label for="conversionPercentage" style="margin-top:15px;">Percentage of Static Tours to Convert (%)</label>
+                            <input type="number" id="conversionPercentage" value="10" min="0" max="100">
+                        </div>
+
+                        <div id="filterOptions" style="display:none;">
+                            <p style="font-weight:600; margin-top:15px; color: var(--primary-text);">Convert static points that match ALL filters:</p>
+                            <div class="filter-section">
+                                <div>
+                                    <label for="filterOperationType">Operation Type:</label>
+                                    <select id="filterOperationType"></select>
+                                </div>
+                                <div>
+                                    <label for="filterFrequency">Current Frequency (more than X days):</label>
+                                    <input type="number" id="filterFrequency" value="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="run-button" onclick="runSimulation()">Run Simulation</button>
+                </div>
+
+                <div class="results-panel">
+                    <h2>Comparative Results</h2>
+                    <div id="kpiContainer" class="kpi-container">
+                        <!-- KPIs will be dynamically inserted here -->
+                    </div>
+                    <div class="charts-container">
+                        <div><canvas id="costChart"></canvas></div>
+                        <div><canvas id="savingsChart"></canvas></div>
+                    </div>
+                     <div id="resultsTableContainer">
+                        <!-- Detailed table will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="DataFoundation" class="tab-content">
+            <h2>Data Foundation: All Service Points</h2>
+            <p style="color: var(--secondary-text);">This table contains the raw, cleaned data used as the basis for all simulations.</p>
+            <div id="dataTableContainer">
+                <table id="foundationTable"></table>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- DATA FOUNDATION ---
+// This data is embedded directly from the 'SP - opgeschoonde data.csv' file.
+const servicePointsData = [
+    { "Unique ID": "SP001-Ind-2500L", "Full Service Point Description": "Eemhavenweg (Haven 2674A) 14 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP002-Pap-2500L", "Full Service Point Description": "Eemhavenweg (Haven 2674A) 14 - Paper/cardboard - 2500L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP003-Ope-15m3", "Full Service Point Description": "Eemhavenweg (Haven 2674A) 14 - Open reusable demolition dumpster - 15m3", "Operation Type": "Open reusable demolition dumpster", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP004-Bin-200L", "Full Service Point Description": "Eemhavenweg (Haven 2674A) 14 - Bins with lid - 200L", "Operation Type": "Bins with lid", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP005-Bat-", "Full Service Point Description": "Eemhavenweg (Haven 2674A) 14 - Batteries - ", "Operation Type": "Batteries", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP006-Ind-1100L", "Full Service Point Description": "Noordzeeboulevard (Haven 8725) 501 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 14, "Candidate for Conversion": true },
+    { "Unique ID": "SP007-Pap-1100L", "Full Service Point Description": "Noordzeeboulevard (Haven 8725) 501 - Paper/cardboard - 1100L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Static", "Current Base Frequency (Days)": 14, "Candidate for Conversion": true },
+    { "Unique ID": "SP008-Con-240L", "Full Service Point Description": "Noordzeeboulevard (Haven 8725) 501 - Confidential data - 240L", "Operation Type": "Confidential data", "Current Tour Type": "Static", "Current Base Frequency (Days)": 14, "Candidate for Conversion": true },
+    { "Unique ID": "SP009-Gla-240L", "Full Service Point Description": "Noordzeeboulevard (Haven 8725) 501 - Glass - 240L", "Operation Type": "Glass", "Current Tour Type": "Static", "Current Base Frequency (Days)": 14, "Candidate for Conversion": true },
+    { "Unique ID": "SP010-Swi-", "Full Service Point Description": "Waalhaven Z.z. 4 (Havennr 2205) - Swill - ", "Operation Type": "Swill", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP011-Gre-", "Full Service Point Description": "Waalhaven Z.z. 4 (Havennr 2205) - Grease trap - ", "Operation Type": "Grease trap", "Current Tour Type": "Static", "Current Base Frequency (Days)": 28, "Candidate for Conversion": true },
+    { "Unique ID": "SP012-Ind-1100L", "Full Service Point Description": "Pottumkade 110-148 Rdam PTM002 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP013-Ind-2500L", "Full Service Point Description": "Pottumkade 150-200 Rdam PTM002 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP014-Pap-2500L", "Full Service Point Description": "Pottumkade 150-200 Rdam PTM002 - Paper/cardboard - 2500L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Static", "Current Base Frequency (Days)": 14, "Candidate for Conversion": true },
+    { "Unique ID": "SP015-Ind-1100L", "Full Service Point Description": "Droogdokweg 71 Rdam HEY013 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP016-Pap-1100L", "Full Service Point Description": "Droogdokweg 71 Rdam HEY013 - Paper/cardboard - 1100L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Static", "Current Base Frequency (Days)": 14, "Candidate for Conversion": true },
+    { "Unique ID": "SP017-Ind-1100L", "Full Service Point Description": "Waalhaven N.z. 1 Rdam BRN004 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP018-Ind-660L", "Full Service Point Description": "Gieterijweg 17-29 Rdam BRN006 - Industrial/residual waste - 660L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP019-Ind-2500L", "Full Service Point Description": "Atoomweg 665-667 Rdam BOT063 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP020-Ind-1100L", "Full Service Point Description": "Merseyweg 10 Rdam BOT065 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP021-Ind-1100L", "Full Service Point Description": "Neckarweg 32 Rdam BOT066 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP022-Ind-2500L", "Full Service Point Description": "Scheepsbouwweg 8 Rdam RDM006 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP023-Ind-2500L", "Full Service Point Description": "Scheepsbouwweg 8 Rdam RDM006 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP024-Ind-2500L", "Full Service Point Description": "Waalhaven Z.z. 19 Rdam WLH035 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP025-Ind-2500L", "Full Service Point Description": "Waalhaven Z.z. 19 Rdam WLH035 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Static", "Current Base Frequency (Days)": 7, "Candidate for Conversion": true },
+    { "Unique ID": "SP026-Ind-1000L", "Full Service Point Description": "Neckarweg 32 Rdam BOT066 - Industrial/residual waste - 1000L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP027-Pap-1100L", "Full Service Point Description": "Neckarweg 32 Rdam BOT066 - Paper/cardboard - 1100L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP028-Con-240L", "Full Service Point Description": "Neckarweg 32 Rdam BOT066 - Confidential data - 240L", "Operation Type": "Confidential data", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP029-Pap-240L", "Full Service Point Description": "Klinknagelstraat 1 Rdam RDM004 - Paper/cardboard - 240L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP030-Con-240L", "Full Service Point Description": "Klinknagelstraat 1 Rdam RDM004 - Confidential data - 240L", "Operation Type": "Confidential data", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP031-Gla-240L", "Full Service Point Description": "Klinknagelstraat 1 Rdam RDM004 - Glass - 240L", "Operation Type": "Glass", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP032-Ind-2500L", "Full Service Point Description": "Scheepsbouwweg 8 Rdam RDM006 - Industrial/residual waste - 2500L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP033-Pap-2500L", "Full Service Point Description": "Scheepsbouwweg 8 Rdam RDM006 - Paper/cardboard - 2500L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP034-Gla-2500L", "Full Service Point Description": "Scheepsbouwweg 8 Rdam RDM006 - Glass - 2500L", "Operation Type": "Glass", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP035--", "Full Service Point Description": "Directiekade 15 Rdam RDM012 -  - ", "Operation Type": "", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP036-Pap-1100L", "Full Service Point Description": "Waalhaven Z.z. 19 Rdam WLH035 - Paper/cardboard - 1100L", "Operation Type": "Paper/cardboard", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP037-Ind-1100L", "Full Service Point Description": "Albert Plesmanweg 63 Rdam WLH052 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP038-Ind-1100L", "Full Service Point Description": "Van Riemsdijkweg 76-78 Rdam WLH053 - Industrial/residual waste - 1100L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false },
+    { "Unique ID": "SP039-Ind-660L", "Full Service Point Description": "Van Riemsdijkweg 76-78 Rdam WLH053 - Industrial/residual waste - 660L", "Operation Type": "Industrial/residual waste", "Current Tour Type": "Dynamic", "Current Base Frequency (Days)": null, "Candidate for Conversion": false }
+];
+
+// --- GLOBAL VARIABLES ---
+let costChartInstance = null;
+let savingsChartInstance = null;
+const DAYS_IN_YEAR = 365.25;
+
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Set global chart colors
+    Chart.defaults.color = '#6b7280';
+    Chart.defaults.font.family = 'system-ui, sans-serif';
+
+    populateFoundationTable();
+    populateFilterOptions();
+    runSimulation(); // Run once on load with default values
+});
+
+// --- UI AND TABS ---
+function openTab(evt, tabName) {
+    let i, tabcontent, tabbuttons;
+    tabcontent = document.getElementsByClassName("tab-content");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+    tabbuttons = document.getElementsByClassName("tab-button");
+    for (i = 0; i < tabbuttons.length; i++) {
+        tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
+    }
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+}
+
+function toggleConversionOptions() {
+    const type = document.getElementById('conversionType').value;
+    document.getElementById('percentageOptions').style.display = (type === 'percentage') ? 'block' : 'none';
+    document.getElementById('filterOptions').style.display = (type === 'filter') ? 'block' : 'none';
+}
+
+
+// --- DATA POPULATION ---
+function populateFoundationTable() {
+    const table = document.getElementById('foundationTable');
+    if (servicePointsData.length === 0) return;
+    const headers = Object.keys(servicePointsData[0]);
+    let headerHtml = '<thead><tr>';
+    headers.forEach(h => headerHtml += `<th>${h}</th>`);
+    headerHtml += '</tr></thead>';
+    
+    let bodyHtml = '<tbody>';
+    servicePointsData.forEach(row => {
+        bodyHtml += '<tr>';
+        headers.forEach(h => {
+             bodyHtml += `<td>${row[h] === null ? 'N/A' : row[h]}</td>`;
+        });
+        bodyHtml += '</tr>';
+    });
+    bodyHtml += '</tbody>';
+    table.innerHTML = headerHtml + bodyHtml;
+}
+
+function populateFilterOptions() {
+    const operationTypes = [...new Set(servicePointsData.map(p => p['Operation Type']))].sort();
+    const select = document.getElementById('filterOperationType');
+    select.innerHTML = '<option value="all">All Types</option>';
+    operationTypes.forEach(type => {
+        if (type) { // Avoid blank types
+            select.innerHTML += `<option value="${type}">${type}</option>`;
+        }
+    });
+}
+
+
+// --- SIMULATION ENGINE ---
+function runSimulation() {
+    const config = {
+        costStatic: parseFloat(document.getElementById('costStatic').value) || 0,
+        costDynamic: parseFloat(document.getElementById('costDynamic').value) || 0,
+        avgDaysNewDynamic: parseFloat(document.getElementById('avgDaysNewDynamic').value) || 1,
+        avgDaysExistingDynamic: parseFloat(document.getElementById('avgDaysExistingDynamic').value) || 1,
+        conversionType: document.getElementById('conversionType').value,
+        conversionPercentage: (parseFloat(document.getElementById('conversionPercentage').value) || 0) / 100,
+        filterOpType: document.getElementById('filterOperationType').value,
+        filterFreq: parseFloat(document.getElementById('filterFrequency').value) || 0
+    };
+    
+    const convertiblePoints = servicePointsData.filter(p => p['Candidate for Conversion']);
+    let pointsToConvertIds = new Set();
+
+    if (config.conversionType === 'percentage') {
+        const count = Math.round(convertiblePoints.length * config.conversionPercentage);
+        for (let i = 0; i < count; i++) {
+            pointsToConvertIds.add(convertiblePoints[i]['Unique ID']);
+        }
+    } else { // filter
+        convertiblePoints.forEach(p => {
+            const opTypeMatch = (config.filterOpType === 'all' || p['Operation Type'] === config.filterOpType);
+            const freqMatch = (p['Current Base Frequency (Days)'] > config.filterFreq);
+            if (opTypeMatch && freqMatch) {
+                pointsToConvertIds.add(p['Unique ID']);
+            }
+        });
+    }
+
+    let results = [];
+    let totals = { ist_cost: 0, soll_cost: 0, ist_tours: 0, soll_tours: 0 };
+    let savingsByOpType = {};
+
+    servicePointsData.forEach(p => {
+        let resultRow = { ...p, ist_tours: 0, ist_cost: 0, soll_tours: 0, soll_cost: 0, soll_tour_type: p['Current Tour Type'] };
+        
+        if (p['Current Tour Type'] === 'Static') {
+            resultRow.ist_tours = DAYS_IN_YEAR / (p['Current Base Frequency (Days)'] || 1);
+            resultRow.ist_cost = resultRow.ist_tours * config.costStatic;
+        } else {
+            resultRow.ist_tours = DAYS_IN_YEAR / config.avgDaysExistingDynamic;
+            resultRow.ist_cost = resultRow.ist_tours * config.costDynamic;
+        }
+        
+        if (pointsToConvertIds.has(p['Unique ID'])) {
+            resultRow.soll_tour_type = 'Dynamic (Converted)';
+            resultRow.soll_tours = DAYS_IN_YEAR / config.avgDaysNewDynamic;
+            resultRow.soll_cost = resultRow.soll_tours * config.costDynamic;
+        } else {
+            resultRow.soll_tours = resultRow.ist_tours;
+            resultRow.soll_cost = resultRow.ist_cost;
+        }
+        
+        resultRow.savings = resultRow.ist_cost - resultRow.soll_cost;
+        results.push(resultRow);
+
+        totals.ist_cost += resultRow.ist_cost;
+        totals.ist_tours += resultRow.ist_tours;
+        totals.soll_cost += resultRow.soll_cost;
+        totals.soll_tours += resultRow.soll_tours;
+
+        const opType = p['Operation Type'] || 'Unknown';
+        if (!savingsByOpType[opType]) savingsByOpType[opType] = 0;
+        savingsByOpType[opType] += resultRow.savings;
+    });
+
+    displayKPIs({ ...totals, converted_count: pointsToConvertIds.size });
+    displayCharts({ ...totals, savingsByOpType });
+    displayResultsTable(results);
+}
+
+
+// --- RESULTS DISPLAY ---
+function displayKPIs(data) {
+    const savings_total = data.ist_cost - data.soll_cost;
+    const savings_percentage = (data.ist_cost > 0) ? (savings_total / data.ist_cost) * 100 : 0;
+    
+    let savingsClass = savings_total >= 0 ? 'savings' : 'loss';
+    
+    const kpiContainer = document.getElementById('kpiContainer');
+    kpiContainer.innerHTML = `
+        <div class="kpi-box">
+            <h4>IST Annual Cost</h4>
+            <div class="kpi-value">€${data.ist_cost.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        </div>
+        <div class="kpi-box">
+            <h4>SOLL Annual Cost</h4>
+            <div class="kpi-value">€${data.soll_cost.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        </div>
+        <div class="kpi-box">
+            <h4>Annual Savings</h4>
+            <div class="kpi-value"><span class="${savingsClass}">€${savings_total.toLocaleString('en-US', {maximumFractionDigits: 0})} (${savings_percentage.toFixed(1)}%)</span></div>
+        </div>
+        <div class="kpi-box">
+            <h4>Converted Points</h4>
+            <div class="kpi-value">${data.converted_count}</div>
+        </div>
+    `;
+}
+
+function displayCharts(data) {
+    const ctxCost = document.getElementById('costChart').getContext('2d');
+    const ctxSavings = document.getElementById('savingsChart').getContext('2d');
+
+    if(costChartInstance) costChartInstance.destroy();
+    costChartInstance = new Chart(ctxCost, {
+        type: 'bar',
+        data: {
+            labels: ['Annual Cost'],
+            datasets: [{
+                label: 'IST (Current)',
+                data: [data.ist_cost],
+                backgroundColor: '#6b7280',
+                borderRadius: 4
+            }, {
+                label: 'SOLL (Simulated)',
+                data: [data.soll_cost],
+                backgroundColor: '#1f2937',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            plugins: { title: { display: true, text: 'Total Cost Comparison', color: '#1f2937', font: { size: 16, weight: '600' } } },
+            scales: { y: { beginAtZero: true, ticks: { callback: value => '€' + value.toLocaleString() } } }
+        }
+    });
+    
+    const sortedSavings = Object.entries(data.savingsByOpType).filter(([_,v]) => Math.abs(v) > 0.01).sort((a, b) => b[1] - a[1]);
+    
+    if(savingsChartInstance) savingsChartInstance.destroy();
+    savingsChartInstance = new Chart(ctxSavings, {
+        type: 'bar',
+        data: {
+            labels: sortedSavings.map(item => item[0]),
+            datasets: [{
+                label: 'Savings by Operation Type',
+                data: sortedSavings.map(item => item[1]),
+                backgroundColor: (context) => {
+                    const value = context.dataset.data[context.dataIndex];
+                    return value >= 0 ? '#3BA935' : '#d9534f';
+                },
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            plugins: { title: { display: true, text: 'Savings Breakdown by Type', color: '#1f2937', font: { size: 16, weight: '600' } } },
+            scales: { x: { beginAtZero: true, ticks: { callback: value => '€' + value.toLocaleString() } } }
+        }
+    });
+}
+
+function displayResultsTable(results) {
+    const container = document.getElementById('resultsTableContainer');
+    let tableHtml = `
+        <h3 style="margin-top:30px;">Detailed Breakdown</h3>
+        <div style="max-height: 400px; overflow-y: auto;">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Unique ID</th>
+                    <th>IST Cost (€)</th>
+                    <th>SOLL Tour Type</th>
+                    <th>SOLL Cost (€)</th>
+                    <th>Savings (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    results.forEach(row => {
+        tableHtml += `
+            <tr>
+                <td>${row['Unique ID']}</td>
+                <td>${row.ist_cost.toFixed(2)}</td>
+                <td>${row.soll_tour_type}</td>
+                <td>${row.soll_cost.toFixed(2)}</td>
+                <td style="font-weight:600; color: ${row.savings > 0 ? '#3BA935' : (row.savings < 0 ? '#d9534f' : '#6b7280')}">${row.savings.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `</tbody></table></div>`;
+    container.innerHTML = tableHtml;
+}
+
+</script>
+</body>
+</html>
